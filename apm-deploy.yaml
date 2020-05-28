@@ -1,0 +1,54 @@
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  namespace: namespace
+  name: apm-server
+  labels:
+    app: apm-server
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: apm-server
+    spec:
+      containers:
+      - name: apm-server
+        image: docker.elastic.co/apm/apm-server:7.4.0
+        env:
+        - name: ELASTICSEARCH_HOST
+          value: elastichost:9200
+        - name: ELASTICSEARCH_PORT
+          value: "9200"
+        - name: ELASTICSEARCH_USERNAME
+          value: elastic
+        - name: ELASTICSEARCH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: apm-secret-name
+              key: password
+        - name: KIBANA_HOST
+          value: kibanahost
+        - name: KIBANA_PORT
+          value: "5601"
+        ports:
+        - containerPort: 8200
+          name: apm-server
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "1Gi"
+          requests:
+            cpu: "200m"
+            memory: "256Mi"
+        volumeMounts:
+        - name: config
+          mountPath: /usr/share/apm-server/apm-server.yml
+          readOnly: true
+          subPath: apm-server.yml
+      volumes:
+      - name: config
+        configMap:
+          name: apm-server-config
+---
