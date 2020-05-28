@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: apm-server
+  name: apm-server-config
+  namespace: namespace
+data:
+  apm-server.yml: |-
+    apm-server:
+      host: "0.0.0.0:8200"
+      frontend:
+        enabled: false
+    setup.template.settings:
+      index:
+        number_of_shards: 30
+        number_of_replicas: 1
+        codec: best_compression
+    output.elasticsearch:
+      hosts: ['elastic:password@elastichost:9200']
+    setup.kibana:
+      host: '${KIBANA_HOST:kibanahost}:${KIBANA_PORT:5601}'
+      indices:
+        - index: "apm-*-sourcemap"
+          when.contains:
+          processor.event: "sourcemap"
+        - index: "apm-error-%{+yyyy.MM.dd}"
+          when.contains:
+            processor.event: "error"
+        - index: "apm-transaction-%{+yyyy.MM.dd}"
+          when.contains:
+            processor.event: "transaction"
+        - index: "apm-span-%{+yyyy.MM.dd}"
+          when.contains:
+            processor.event: "span"
+        - index: "apm-metric-%{+yyyy.MM.dd}"
+          when.contains:
+            processor.event: "metric"
+
+    ilm:
+      enabled: "auto"
+      setup:
+        mapping:
+          - event_type: "error"
+            policy_name: "apm-error-span-policy"
+          - event_type: "span"
+            policy_name: "apm-error-span-policy"
+          - event_type: "transaction"
+            policy_name: "apm-transaction-metric-policy"
+          - event_type: "metric"
+            policy_name: "apm-transaction-metric-policy"
+        enabled: true
+        policies:
+          - name: "apm-error-span-policy"
+            policy:
+              phases:
+                hot:
+                  actions:
+                    rollover:
+                      max_size: "10gb"
+                      max_age: "3d"
+                    set_priority:
+                      priority: 100
+                delete:
+                  min_age: "7d"
+                  actions:
+                    readonly: {}
+          - name: "apm-transaction-metric-policy"
+            policy:
+              phases:
+                hot:
+                  actions:
+                    rollover:
+                      max_size: "50gb"
+                      max_age: "30d"
+                    set_priority:
+                      priority: 100
+                delete:
+                  min_age: "7d"
+                  actions:
+                    readonly: {}
+    logging:
+      logging.level: info
+      logging.to_files: true
+      logging.files:
+        path: /var/log/apm-server
+        name: apm-server
+        keepfiles: 7
+        permissions: 0644
